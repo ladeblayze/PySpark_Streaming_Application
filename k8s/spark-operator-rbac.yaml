@@ -1,0 +1,84 @@
+# spark-operator-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-operator
+---
+# spark-operator-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-operator
+  namespace: spark-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spark-operator
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["*"]
+- apiGroups: ["extensions"]
+  resources: ["ingresses"]
+  verbs: ["*"]
+- apiGroups: ["sparkoperator.k8s.io"]
+  resources: ["sparkapplications", "sparkapplications/status", "scheduledsparkapplications"]
+  verbs: ["*"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingadmissionconfigurations", "validatingadmissionconfigurations"]
+  verbs: ["*"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spark-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spark-operator
+subjects:
+- kind: ServiceAccount
+  name: spark-operator
+  namespace: spark-operator
+---
+# spark-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spark-role
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spark
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spark-role
+subjects:
+- kind: ServiceAccount
+  name: spark
+  namespace: default
