@@ -1,8 +1,8 @@
 Spark Structured Streaming on Kubernetes with Kafka
 
-A production-ready Spark Structured Streaming application that processes restaurant events from Kafka, applies transformations, and writes the results to another Kafka topic — all orchestrated on Kubernetes with the Spark Operator.
+A Spark Structured Streaming application that processes restaurant events from Kafka, applies transformations, and writes the results to another Kafka topic, all orchestrated on Kubernetes with the Spark Operator.
 
-📋 Prerequisites
+Prerequisites
 
 Docker Desktop (with Kubernetes enabled) or Minikube
 
@@ -14,7 +14,7 @@ Python 3.8+ (for local testing)
 
 At least 6GB RAM + 4 CPU cores allocated to Docker/Minikube
 
-🏗️ Architecture
+Architecture
 ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
 │   Kafka     │────>│ Spark Stream │────>│  Kafka Output   │
 │   Input     │     │  Processing  │     │     Topic       │
@@ -26,7 +26,7 @@ At least 6GB RAM + 4 CPU cores allocated to Docker/Minikube
 │ Operator     │
 └──────────────┘
 
-🚀 Quick Start
+Quick Start
 1. Clone the Repository
 git clone <repository-url>
 cd spark-streaming-k8s
@@ -77,7 +77,7 @@ kubectl port-forward -n spark \
   4040:4040
 # Open http://localhost:4040
 
-📊 Application Details
+Application Details
 
 Transformations Applied
 
@@ -110,7 +110,7 @@ Output Format
   "processing_version": "1.0.0"
 }
 
-🧪 Testing
+Testing
 
 Unit Tests
 
@@ -128,7 +128,7 @@ kubectl exec -it -n kafka kafka-0 -- kafka-console-consumer \
   --topic processed-events \
   --from-beginning
 
-🔧 Troubleshooting
+#Troubleshooting
 
 Driver pod fails →
 
@@ -149,7 +149,7 @@ Checkpoint errors → mount a PVC for checkpoints
 
 Topic not found → recreate topics via k8s/kafka/kafka-topics.yaml
 
-📝 Configuration
+#Configuration
 Variable	Description	Default
 KAFKA_BOOTSTRAP_SERVERS	Kafka brokers	kafka-service.kafka.svc.cluster.local:9092
 INPUT_TOPIC	Input Kafka topic	restaurant-events
@@ -169,12 +169,12 @@ kubectl exec -it -n kafka kafka-0 -- kafka-topics \
   --partitions 6 \
   --bootstrap-server kafka-service:9092
 
-🧹 Cleanup
+Cleanup
 kubectl delete sparkapplication -n spark spark-streaming-processor
 kubectl delete namespace spark kafka spark-operator
 minikube stop && minikube delete
 
-📚 References
+References
 
 Apache Spark Docs
 
@@ -197,7 +197,7 @@ Kubernetes 1.28.0
 
 Python 3.11
 
-📂 Project Structure
+Project Structure
 spark-streaming-k8s/
 ├── README.md
 ├── docker/              # Docker image
