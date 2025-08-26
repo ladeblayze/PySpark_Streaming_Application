@@ -1,7 +1,0 @@
-controller:
-  namespaces:
-    - spark
-webhook:
-  enable: true
-  namespaces:
-    - spark
