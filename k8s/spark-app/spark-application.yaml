@@ -1,0 +1,77 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: spark-streaming-processor
+  namespace: spark
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: "spark-streaming:latest"
+  imagePullPolicy: IfNotPresent
+  mainApplicationFile: "local:///opt/spark/work-dir/src/streaming_app.py"
+  sparkVersion: "3.5.0"
+  restartPolicy:
+    type: Always
+    onFailureRetries: 3
+    onFailureRetryInterval: 10
+    onSubmissionFailureRetries: 5
+    onSubmissionFailureRetryInterval: 20
+  
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "2g"
+    labels:
+      version: "1.0.0"
+      app: "spark-streaming"
+    serviceAccount: spark
+    envFrom:
+    - configMapRef:
+        name: spark-app-config
+    env:
+    - name: SPARK_IMAGE
+      value: "spark-streaming:latest"
+    volumeMounts:
+    - name: checkpoint-volume
+      mountPath: /tmp/checkpoint
+  
+  executor:
+    cores: 1
+    instances: 2
+    memory: "2g"
+    labels:
+      version: "1.0.0"
+      app: "spark-streaming"
+    envFrom:
+    - configMapRef:
+        name: spark-app-config
+    volumeMounts:
+    - name: checkpoint-volume
+      mountPath: /tmp/checkpoint
+  
+  volumes:
+  - name: checkpoint-volume
+    emptyDir: {}
+  
+  sparkConf:
+    "spark.kubernetes.container.image.pullPolicy": "IfNotPresent"
+    "spark.kubernetes.namespace": "spark"
+    "spark.kubernetes.authenticate.driver.serviceAccountName": "spark"
+    "spark.kubernetes.authenticate.executor.serviceAccountName": "spark"
+    "spark.sql.streaming.checkpointLocation": "/tmp/checkpoint"
+    "spark.sql.adaptive.enabled": "true"
+    "spark.sql.adaptive.coalescePartitions.enabled": "true"
+    "spark.streaming.stopGracefullyOnShutdown": "true"
+    "spark.jars.packages": "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.apache.kafka:kafka-clients:3.5.0"
+    "spark.kubernetes.driver.request.cores": "1"
+    "spark.kubernetes.executor.request.cores": "1"
+    "spark.kubernetes.submission.waitAppCompletion": "false"
+    "spark.ui.prometheus.enabled": "true"
+    
+  monitoring:
+    exposeDriverMetrics: true
+    exposeExecutorMetrics: true
+    prometheus:
+      jmxExporterJar: "/prometheus/jmx_prometheus_javaagent-0.18.0.jar"
+      port: 8090
