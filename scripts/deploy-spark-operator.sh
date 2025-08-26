@@ -9,7 +9,7 @@ kubectl apply -f k8s/spark-operator/service-account.yaml
 
 # Add Spark Operator Helm repository
 echo "📦 Adding Spark Operator Helm repository..."
-helm repo add spark-operator https://googlecloudplatform.github.io/spark-on-k8s-operator
+helm repo add spark-operator https://googlecloudplatform.github.io/spark-on-k8s-operator || true
 helm repo update
 
 # Install Spark Operator with custom values

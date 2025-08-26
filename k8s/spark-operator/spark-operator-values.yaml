@@ -1,7 +1,7 @@
 # Custom values for Spark Operator Helm chart
 webhook:
   enable: true
-  port: 8080
+  #port: 8080
 
 sparkJobNamespace: spark
 

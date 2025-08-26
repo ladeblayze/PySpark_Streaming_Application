@@ -25,7 +25,7 @@ fi
 echo "📦 Starting Minikube cluster..."
 minikube start \
     --cpus=4 \
-    --memory=8192 \
+    --memory=6500 \
     --kubernetes-version=v1.28.0 \
     --driver=docker
 
