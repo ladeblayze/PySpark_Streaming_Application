@@ -26,7 +26,7 @@ Python 3.8+ (for local testing)
 
 
 
-At least 8GB RAM + 4 CPU cores allocated to Docker/Minikube
+At least 6GB RAM + 4 CPU cores allocated to Docker/Minikube
 
 
 
