@@ -11,32 +11,34 @@ docker build -t spark-streaming:latest -f docker/Dockerfile .
 echo "📦 Loading image into Minikube..."
 minikube image load spark-streaming:latest
 
-# Create ConfigMap
+# Create ConfigMap in DEFAULT namespace
 echo "⚙️ Creating ConfigMap..."
-kubectl apply -f k8s/spark-app/configmap.yaml
+kubectl apply -f k8s/spark-app/configmap.yaml -n default
 
-# Deploy SparkApplication
+# Deploy SparkApplication to DEFAULT namespace (and remove jars.packages)
 echo "🚀 Deploying SparkApplication..."
-kubectl apply -f k8s/spark-app/spark-application.yaml
+sed 's/namespace: spark/namespace: default/g' k8s/spark-app/spark-application.yaml | \
+  sed '/spark.jars.packages/d' | \
+  kubectl apply -f -
 
 # Wait for application to start
 echo "⏳ Waiting for SparkApplication to start..."
 sleep 10
 
-# Check application status
+# Check application status in DEFAULT namespace
 echo "📊 Checking application status..."
-kubectl get sparkapplication -n spark
-kubectl describe sparkapplication spark-streaming-processor -n spark
+kubectl get sparkapplication -n default
+kubectl describe sparkapplication spark-streaming-processor -n default
 
-# Get driver pod logs
+# Get driver pod logs from DEFAULT namespace
 echo "📋 Driver pod logs:"
-DRIVER_POD=$(kubectl get pods -n spark -l spark-role=driver -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+DRIVER_POD=$(kubectl get pods -n default -l spark-role=driver -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 if [ -n "$DRIVER_POD" ]; then
-    kubectl logs -n spark $DRIVER_POD --tail=50
+    kubectl logs -n default $DRIVER_POD --tail=50
 else
     echo "Driver pod not yet available. Check back in a moment."
 fi
 
 echo "✅ Application deployment complete!"
 echo "🔍 Monitor the application with:"
-echo "kubectl logs -n spark -l spark-role=driver -f"
+echo "kubectl logs -n default -l spark-role=driver -f"

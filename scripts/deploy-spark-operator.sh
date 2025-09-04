@@ -18,11 +18,9 @@ helm install spark-operator spark-operator/spark-operator \
     --namespace spark-operator \
     --create-namespace \
     --values k8s/spark-operator/spark-operator-values.yaml \
-    --set webhook.enable=true \
-    --set webhook.port=8080 \
     --set serviceAccounts.spark.name=spark \
     --set serviceAccounts.sparkoperator.name=spark-operator \
-    --wait
+    --timeout 2m
 
 # Wait for operator to be ready
 echo "⏳ Waiting for Spark Operator to be ready..."

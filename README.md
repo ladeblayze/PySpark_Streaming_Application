@@ -1,207 +1,245 @@
-Spark Structured Streaming on Kubernetes with Kafka
+Kafka + Spark Streaming on Kubernetes
+A production-ready streaming data pipeline that reads messages from Kafka, applies transformations using PySpark, and outputs results to another Kafka topic - all running on Kubernetes.
+Architecture Overview
 
-A Spark Structured Streaming application that processes restaurant events from Kafka, applies transformations, and writes the results to another Kafka topic, all orchestrated on Kubernetes with the Spark Operator.
+Kubernetes Cluster: Minikube for local development
+Message Broker: Apache Kafka (managed by Strimzi operator)
+Stream Processing: Apache Spark 3.5.0 with structured streaming
+Data Transformation: Multiply array values by 2, filter by timestamp
+Containerization: Docker with custom PySpark image
 
+Requirements Met
+
+[*] Kubernetes cluster capable of handling Spark jobs (batch and streaming)
+[*] Dockerized PySpark streaming application
+[*] Kafka integration with input/output topics
+[*] Data transformation (multiply data_array by 2)
+[*] Timestamp filtering (events from last hour)
+[*]JSON message processing
+[*] Real-time streaming with micro-batch processing
+
+File Structure
+spark-kafka-k8s/
+├── README.md
+├── Dockerfile
+├── src/
+│   ├── spark_streaming_app.py
+│   ├── requirements.txt
+│   
+├── 
+├── kubernetes/
+│   ├── kafka-cluster.yaml
+│   ├── kafka-topics.yaml
+│   └── spark-job.yaml
+├── 
+├── scripts/
+│   ├── setup.sh
+│   ├── deploy.sh
+│   ├── verify.sh
+│   └── cleanup.sh
+├── 
+└── testing/
+    ├── data_producer.py
+    
 Prerequisites
 
-Docker Desktop (with Kubernetes enabled) or Minikube
-
-kubectl CLI
-
+Docker Desktop
+kubectl
+minikube
 Helm 3.x
-
-Python 3.8+ (for local testing)
-
-At least 6GB RAM + 4 CPU cores allocated to Docker/Minikube
-
-Architecture
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│   Kafka     │────>│ Spark Stream │────>│  Kafka Output   │
-│   Input     │     │  Processing  │     │     Topic       │
-└─────────────┘     └──────────────┘     └─────────────────┘
-        │
-        ▼
-┌──────────────┐
-│ Spark        │
-│ Operator     │
-└──────────────┘
+Python 3.8+
 
 Quick Start
-1. Clone the Repository
-git clone <repository-url>
-cd spark-streaming-k8s
+1. Start Minikube
+bash
+minikube start --cpus=4 --memory=8192 --driver=docker
+2. Install Infrastructure
+bash
+chmod +x ./scripts/setup.sh && ./scripts/setup.sh
+3. Deploy Application
+bash
+chmod +x ./scripts/deploy.sh && ./scripts/deploy.sh
+4. Verify Deployment
+bash
+kubectl get pods -A
+kubectl logs -f spark-streaming-job -n spark
 
-2. Set Up Kubernetes Cluster
-# With helper script
-./scripts/setup-cluster.sh
+Detailed Setup Instructions
+Step 1: Infrastructure Setup
+Install Kafka and Spark operators:
+bash
+# Add Helm repositories
+helm repo add strimzi https://strimzi.io/charts/
+helm repo add spark-operator https://kubeflow.github.io/spark-operator
+helm repo update
 
-# OR manually with Minikube
-minikube start --cpus=4 --memory=6000 --driver=docker
+# Create namespaces
+kubectl create namespace kafka
+kubectl create namespace spark
 
-3. Deploy Kafka
-./scripts/deploy-kafka.sh
-kubectl get pods -n kafka   # verify
+# Install Strimzi Kafka operator
+helm install kafka-operator strimzi/strimzi-kafka-operator -n kafka
 
-4. Install Spark Operator
-./scripts/deploy-spark-operator.sh
-kubectl get pods -n spark-operator   # verify
+# Create Spark service account and permissions
+kubectl create serviceaccount spark -n spark
+kubectl create clusterrolebinding spark-role --clusterrole=edit --serviceaccount=spark:spark
 
-5. Build & Deploy Spark Application
-# Build image
-docker build -t spark-streaming:latest -f docker/Dockerfile .
+Step 2: Deploy Kafka Cluster
+bash
+# Deploy Kafka cluster with KRaft mode (ZooKeeper-free)
+kubectl apply -f kafka-cluster.yaml
+kubectl wait kafka/kafka-cluster --for=condition=Ready --timeout=600s -n kafka
 
-# Load into Minikube
-minikube image load spark-streaming:latest
+# Create input and output topics
+kubectl apply -f kafka-topics.yaml
+kubectl wait --for=condition=Ready kafkatopic/input-topic -n kafka --timeout=120s
+kubectl wait --for=condition=Ready kafkatopic/output-topic -n kafka --timeout=120s
 
-# Deploy app
-./scripts/deploy-app.sh
-kubectl get sparkapplication -n spark   # verify
+Step 3: Build and Deploy Spark Application
+bash
+# Build Docker image
+docker build -t spark-kafka-streaming:latest .
+minikube image load spark-kafka-streaming:latest
 
-6. Generate Test Data
-kubectl port-forward -n kafka svc/kafka-service 9092:9092 &
+# Deploy Spark streaming job
+kubectl apply -f spark-job.yaml
+Configuration Details
+Kafka Cluster Configuration
+The Kafka cluster uses:
 
-pip install kafka-python
-python scripts/kafka-producer.py --count 100 --interval 2
+KRaft mode: No ZooKeeper dependency (Strimzi 0.47+)
+2 broker replicas: For fault tolerance
+Replication factor 2: High availability
+Ephemeral storage: Suitable for development/testing
 
-7. Verify Deployment
-./scripts/verify-deployment.sh
+Spark Application Configuration
 
-# Tail driver logs
-kubectl logs -n spark -l spark-role=driver -f
+Spark version: 3.5.0
+Memory: 2GB driver, 1GB executor
+Streaming trigger: 10-second micro-batches
+Checkpoint location: Local /tmp/checkpoint
+Kafka integration: Native Kafka 0.10+ connector
 
+Data Processing Logic
+The streaming application:
 
-Access the Spark UI:
+Reads JSON messages from input-topic
+Parses JSON using defined schema
+Multiplies each element in data_array by 2
+Filters events with timestamps >= current time - 1 hour
+Outputs transformed JSON to output-topic
 
-kubectl port-forward -n spark \
-  $(kubectl get pods -n spark -l spark-role=driver -o jsonpath='{.items[0].metadata.name}') \
-  4040:4040
-# Open http://localhost:4040
-
-Application Details
-
-Transformations Applied
-
-Array Multiplication → multiplies each element in data_array by 2
-
-Time Filtering → keeps only events with timestamp ≥ now()
-
-Input Format
-
-{
+Input Message Format:
+json{
   "Restaurantid": 234,
-  "Event": "map_click",
+  "Event": "map_click", 
   "Properties": {
-    "timestamp": "2025-08-25T14:30:00Z",
+    "timestamp": "2025-09-02T23:00:00Z",
     "is_relevant": true,
     "data_array": [1.0, 2.3, 2.4, 12.0]
   }
 }
-
-
-Output Format
-
-{
-  "restaurant_id": 234,
-  "event": "map_click",
-  "event_timestamp": "2025-08-25T14:30:00Z",
-  "is_relevant": true,
-  "transformed_array": [2.0, 4.6, 4.8, 24.0],
-  "processed_at": "2025-08-25T13:45:30Z",
-  "processing_version": "1.0.0"
+Output Message Format:
+json{
+  "Restaurantid": 234,
+  "Event": "map_click",
+  "Properties": {
+    "timestamp": "2025-09-02T23:00:00Z", 
+    "is_relevant": true,
+    "data_array": [2.0, 4.6, 4.8, 24.0]
+  }
 }
+Testing the Pipeline
+Method 1: Internal Testing (Recommended)
+bash
+# Send test message from inside Kafka cluster
+kubectl exec -it kafka-cluster-dual-role-0 -n kafka -- /bin/bash
 
-Testing
+# Send formatted JSON message
+echo "{\"Restaurantid\": 234, \"Event\": \"map_click\", \"Properties\": {\"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"is_relevant\": true, \"data_array\": [1.0, 2.3, 2.4, 12.0]}}" | \
+/opt/kafka/bin/kafka-console-producer.sh --topic input-topic --bootstrap-server localhost:9092
 
-Unit Tests
+# Verify output
+/opt/kafka/bin/kafka-console-consumer.sh --topic output-topic --from-beginning --bootstrap-server localhost:9092
 
-cd spark-app
-pip install -r requirements.txt
-python -m pytest tests/ -v --cov=src
+exit
+Method 2: External Producer
+bash
+# Port-forward Kafka service
+kubectl port-forward svc/kafka-cluster-kafka-bootstrap 9093:9092 -n kafka
 
+# Run Python producer (in separate terminal)
+python ./testing/data_producer.py
+Verification Steps
+Check All Components
+bash# Verify Kafka cluster
+kubectl get kafka -n kafka
+kubectl get kafkatopic -n kafka
 
-Integration Tests
+# Verify Spark job
+kubectl get pods -n spark
+kubectl logs spark-streaming-job -n spark
 
-python scripts/kafka-producer.py --continuous --interval 1
+# Check resource status
+kubectl get all -n kafka
+kubectl get all -n spark
+Expected Output
+Successful Spark logs show:
+Spark streaming job started successfully!
+"numInputRows" : 1,
+"numOutputRows" : 1
+Successful data transformation:
 
-kubectl exec -it -n kafka kafka-0 -- kafka-console-consumer \
-  --bootstrap-server kafka-service:9092 \
-  --topic processed-events \
-  --from-beginning
+Input: [1.0, 2.3, 2.4, 12.0]
+Output: [2.0, 4.6, 4.8, 24.0] (each value × 2)
 
-#Troubleshooting
+Troubleshooting
+Common Issues
+Kafka Topics Not Ready
+bashkubectl describe kafkatopic input-topic -n kafka
+kubectl logs deployment/strimzi-cluster-operator -n kafka
+Spark Job Failed
+bashkubectl logs spark-streaming-job -n spark
+kubectl describe pod spark-streaming-job -n spark
+Connectivity Issues
+bash# Verify internal Kafka connectivity
+kubectl exec -it kafka-cluster-dual-role-0 -n kafka -- \
+/opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+Resource Constraints
+Minimum requirements:
 
-Driver pod fails →
+CPU: 4 cores
+Memory: 8GB
+Disk: 20GB
 
-kubectl logs -n spark -l spark-role=driver --tail=100
-kubectl apply -f k8s/spark-operator/service-account.yaml
-minikube image list | grep spark-streaming
+For lower resource environments, reduce Kafka/Spark memory allocations in the configuration files.
+Technology Versions
 
-
-Kafka connection issues →
-
-kubectl get pods -n kafka
-kubectl get svc -n kafka
-
-
-Executor OOM → increase executor memory in spark-application.yaml
-
-Checkpoint errors → mount a PVC for checkpoints
-
-Topic not found → recreate topics via k8s/kafka/kafka-topics.yaml
-
-#Configuration
-Variable	Description	Default
-KAFKA_BOOTSTRAP_SERVERS	Kafka brokers	kafka-service.kafka.svc.cluster.local:9092
-INPUT_TOPIC	Input Kafka topic	restaurant-events
-OUTPUT_TOPIC	Output Kafka topic	processed-events
-CHECKPOINT_LOCATION	Checkpoint directory	/tmp/checkpoint
-TRIGGER_INTERVAL	Trigger interval	10s
-LOG_LEVEL	Spark log level	INFO
-
-Scaling
-
-# Spark executors
-kubectl edit sparkapplication -n spark spark-streaming-processor
-
-# Kafka partitions
-kubectl exec -it -n kafka kafka-0 -- kafka-topics \
-  --alter --topic restaurant-events \
-  --partitions 6 \
-  --bootstrap-server kafka-service:9092
-
-Cleanup
-kubectl delete sparkapplication -n spark spark-streaming-processor
-kubectl delete namespace spark kafka spark-operator
-minikube stop && minikube delete
-
-References
-
-Apache Spark Docs
-
-Spark on Kubernetes Operator
-
-Apache Kafka Docs
-
-Kubernetes Docs
-
-PySpark Structured Streaming Guide
+Kubernetes: 1.28+
+Apache Kafka: 3.9.0
+Apache Spark: 3.5.0
+Strimzi Operator: 0.47.0
+Python: 3.8+
+Docker: Latest
 
 
-Tested with:
+Clean Up
+bash
+# Delete applications
+kubectl delete pod spark-streaming-job -n spark
+kubectl delete kafkatopic input-topic output-topic -n kafka
+kubectl delete kafka kafka-cluster -n kafka
 
-Spark 3.5.0
+# Uninstall operators
+helm uninstall kafka-operator -n kafka
+helm uninstall spark-operator -n spark
 
-Kafka 3.5.0
+# Stop minikube
+minikube stop
+minikube delete
+Documentation References
 
-Kubernetes 1.28.0
-
-Python 3.11
-
-Project Structure
-spark-streaming-k8s/
-├── README.md
-├── docker/              # Docker image
-├── spark-app/           # Application code & tests
-├── k8s/                 # Kubernetes manifests
-├── scripts/             # Helper scripts
-└── data/                # Sample data
+Strimzi Kafka Operator
+Apache Spark on Kubernetes
+Kafka Structured Streaming
+Minikube Documentation
